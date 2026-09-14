@@ -12,3 +12,7 @@ tools/.api-cache
 
 # keep the gradle wrapper jar (needed for ./gradlew)
 !gradle/wrapper/gradle-wrapper.jar
+
+# Python bytecode from tools/
+__pycache__/
+*.pyc

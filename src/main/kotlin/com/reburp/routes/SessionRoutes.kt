@@ -3,7 +3,6 @@ package com.reburp.routes
 import burp.api.montoya.MontoyaApi
 import com.reburp.*
 import io.ktor.http.*
-import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.json.*
@@ -80,47 +79,20 @@ fun Routing.sessionRoutes(api: MontoyaApi) {
             }.onFailure { call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error")) }
         }
 
-        // Add an "add header" session rule
+        // Burp has no add-header session handling action, so this can never work. Its actions
+        // are use_cookies, set cookie/param, check session, in-browser recovery, run macro and
+        // invoke extension; anything else is silently stripped on import. This used to build a
+        // rule with an invented "ADD_HEADER" action and answer 200 for a write Burp discarded,
+        // which left callers believing a header was being injected when nothing was.
         post("/rules/add-header") {
-            val req = runCatching { call.receive<AddHeaderRuleRequest>() }.getOrElse {
-                return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse(it.message ?: "Bad body"))
-            }
-            runCatching {
-                val at = locateSessions(api)
-                val rules = rulesOf(at.sessions).toMutableList()
-                val before = rules.size
-                val name = req.name ?: "Add ${req.header_name}"
-
-                rules.add(buildJsonObject {
-                    put("enabled", true)
-                    put("name", name)
-                    put("description", "Auto-added by reburp")
-                    putJsonArray("actions") {
-                        addJsonObject {
-                            put("action_type", "ADD_HEADER")
-                            put("header_name", req.header_name)
-                            put("header_value", req.header_value)
-                        }
-                    }
-                    if (req.scope_url != null) {
-                        putJsonArray("scope_urls") { add(req.scope_url) }
-                    }
-                })
-                applySessions(api, at, JsonArray(rules))
-
-                // Read back before reporting success. This endpoint used to answer 200 for a
-                // write Burp silently dropped, which is worse than an error for a caller that
-                // then assumes the header is being injected.
-                val after = rulesOf(locateSessions(api).sessions).size
-                if (after == before) {
-                    call.respond(
-                        HttpStatusCode.InternalServerError,
-                        ErrorResponse("Burp did not persist the rule (still $before). Check that the project config accepts session handling rules.")
-                    )
-                } else {
-                    call.respond(MessageResponse("Session rule '$name' added ($after total)"))
-                }
-            }.onFailure { if (!call.response.isCommitted) call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error")) }
+            call.respond(
+                HttpStatusCode.NotImplemented,
+                ErrorResponse(
+                    "Burp has no add-header session handling action, so this rule cannot be created. " +
+                        "To add a header to outgoing requests use POST /api/proxy/match-replace " +
+                        "with rule_type 'request_header'."
+                )
+            )
         }
 
         // Delete session rule by index

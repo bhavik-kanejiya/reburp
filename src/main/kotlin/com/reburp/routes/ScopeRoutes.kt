@@ -3,6 +3,7 @@ package com.reburp.routes
 import burp.api.montoya.MontoyaApi
 import com.reburp.*
 import io.ktor.http.*
+import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -11,30 +12,12 @@ import kotlinx.serialization.json.*
 // [Montoya API] - api.scope()
 fun Routing.scopeRoutes(api: MontoyaApi) {
 
-    // List all scope rules (registered at top level to avoid Ktor empty-path routing issue)
-    get("/api/scope") {
-        runCatching {
-            val json = api.burpSuite().exportProjectOptionsAsJson("target")
-            val root = Json.parseToJsonElement(json).jsonObject
-            val target = root["target"]?.jsonObject ?: root
-            val scope = target["scope"]?.jsonObject
-
-            fun parseRules(arr: JsonArray?): List<Map<String, String?>> =
-                arr?.mapNotNull { it.jsonObject }?.map { rule ->
-                    mapOf(
-                        "enabled"  to rule["enabled"]?.jsonPrimitive?.content,
-                        "protocol" to (rule["protocol"]?.jsonPrimitive?.contentOrNull ?: rule["scheme"]?.jsonPrimitive?.contentOrNull),
-                        "host"     to rule["host"]?.jsonPrimitive?.contentOrNull,
-                        "file"     to rule["file"]?.jsonPrimitive?.contentOrNull,
-                        "port"     to rule["port"]?.jsonPrimitive?.contentOrNull
-                    )
-                } ?: emptyList()
-
-            val include = parseRules(scope?.get("include")?.jsonArray)
-            val exclude = parseRules(scope?.get("exclude")?.jsonArray)
-            call.respond(mapOf("include" to include, "exclude" to exclude))
-        }.onFailure { call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error reading scope")) }
-    }
+    // The spec documents this as GET /api/scope/rules, but it was only ever registered at
+    // /api/scope, so the documented path answered 404 and the working one was undocumented.
+    // Both are served now: /api/scope/rules is the contract, /api/scope stays for callers
+    // written against the old behaviour.
+    get("/api/scope") { respondScopeRules(api, call) }
+    get("/api/scope/rules") { respondScopeRules(api, call) }
 
     route("/api/scope") {
 
@@ -82,4 +65,32 @@ fun Routing.scopeRoutes(api: MontoyaApi) {
             call.respond(MessageResponse("URL excluded from scope: ${req.url}"))
         }
     }
+}
+
+// [Montoya Config] - scope rules are read from the target section of the project config.
+private suspend fun respondScopeRules(api: MontoyaApi, call: ApplicationCall) {
+    runCatching {
+        val json = api.burpSuite().exportProjectOptionsAsJson("target")
+        val root = Json.parseToJsonElement(json).jsonObject
+        val target = root["target"]?.jsonObject ?: root
+        val scope = target["scope"]?.jsonObject
+
+        fun parseRules(arr: JsonArray?): List<Map<String, String?>> =
+            arr?.mapNotNull { it.jsonObject }?.map { rule ->
+                mapOf(
+                    "enabled"  to rule["enabled"]?.jsonPrimitive?.content,
+                    "protocol" to (rule["protocol"]?.jsonPrimitive?.contentOrNull ?: rule["scheme"]?.jsonPrimitive?.contentOrNull),
+                    "host"     to rule["host"]?.jsonPrimitive?.contentOrNull,
+                    "file"     to rule["file"]?.jsonPrimitive?.contentOrNull,
+                    "port"     to rule["port"]?.jsonPrimitive?.contentOrNull
+                )
+            } ?: emptyList()
+
+        call.respond(
+            mapOf(
+                "include" to parseRules(scope?.get("include")?.jsonArray),
+                "exclude" to parseRules(scope?.get("exclude")?.jsonArray)
+            )
+        )
+    }.onFailure { call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error reading scope")) }
 }

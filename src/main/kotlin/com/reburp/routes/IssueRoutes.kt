@@ -18,9 +18,19 @@ fun Routing.issueRoutes(api: MontoyaApi) {
         val req = runCatching { call.receive<CreateIssueRequest>() }.getOrElse {
             return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse(it.message ?: "Bad request body"))
         }
+        // Name the accepted values rather than letting valueOf's "No enum constant ..." out.
+        // The vocabularies come from Montoya so they cannot drift from what Burp accepts.
+        val severity = runCatching { AuditIssueSeverity.valueOf(req.severity.uppercase()) }.getOrNull()
+            ?: return@post call.respond(
+                HttpStatusCode.BadRequest,
+                ErrorResponse("Invalid 'severity': '${req.severity}'. Allowed values: ${SEVERITIES.joinToString(", ")}")
+            )
+        val confidence = runCatching { AuditIssueConfidence.valueOf(req.confidence.uppercase()) }.getOrNull()
+            ?: return@post call.respond(
+                HttpStatusCode.BadRequest,
+                ErrorResponse("Invalid 'confidence': '${req.confidence}'. Allowed values: ${CONFIDENCES.joinToString(", ")}")
+            )
         runCatching {
-            val severity = AuditIssueSeverity.valueOf(req.severity.uppercase())
-            val confidence = AuditIssueConfidence.valueOf(req.confidence.uppercase())
             val typicalSeverity = runCatching {
                 AuditIssueSeverity.valueOf((req.typical_severity ?: req.severity).uppercase())
             }.getOrElse { severity }
@@ -52,3 +62,7 @@ fun Routing.issueRoutes(api: MontoyaApi) {
         }.onFailure { call.respond(HttpStatusCode.BadRequest, ErrorResponse(it.message ?: "Error")) }
     }
 }
+
+// Derived from Montoya so the accepted values cannot drift from what Burp actually takes.
+private val SEVERITIES = AuditIssueSeverity.values().map { it.name }
+private val CONFIDENCES = AuditIssueConfidence.values().map { it.name }

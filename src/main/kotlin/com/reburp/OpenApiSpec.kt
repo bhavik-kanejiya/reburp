@@ -76,7 +76,7 @@ fun openApiJson(port: Int): String = """
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/HttpEntry" } }
+                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/ProxyEntry" } }
               }
             }
           }
@@ -96,7 +96,7 @@ fun openApiJson(port: Int): String = """
           { "name": "include_body", "in": "query", "required": false, "schema": { "type": "boolean", "default": true }, "description": "Include request/response bodies" }
         ],
         "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/HttpEntry" } } } },
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/ProxyEntry" } } } },
           "404": { "${'$'}ref": "#/components/responses/NotFound" }
         }
       }
@@ -120,7 +120,7 @@ fun openApiJson(port: Int): String = """
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/HttpEntry" } }
+                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/ProxyEntry" } }
               }
             }
           },
@@ -183,7 +183,7 @@ fun openApiJson(port: Int): String = """
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/HttpEntry" } }
+                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/ResponseSearchMatch" } }
               }
             }
           },
@@ -260,7 +260,7 @@ fun openApiJson(port: Int): String = """
           }
         }
       },
-      "post": {
+      "put": {
         "tags": ["Proxy"],
         "summary": "Toggle proxy intercept",
         "description": "**[Montoya API]** Enable or disable Burp's proxy intercept functionality.",
@@ -1137,7 +1137,7 @@ fun openApiJson(port: Int): String = """
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/ScanIssueDto" } }
+                "schema": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/ScanIssueFull" } }
               }
             }
           },
@@ -1499,7 +1499,7 @@ fun openApiJson(port: Int): String = """
           }
         }
       },
-      "post": {
+      "put": {
         "tags": ["Config"],
         "summary": "Set project configuration",
         "description": "**[Montoya Config]** Merges the provided JSON into the current Burp project configuration.",
@@ -1549,7 +1549,7 @@ fun openApiJson(port: Int): String = """
           }
         }
       },
-      "post": {
+      "put": {
         "tags": ["Config"],
         "summary": "Set user configuration",
         "description": "**[Montoya Config]** Merges the provided JSON into the current Burp user configuration.",
@@ -1640,26 +1640,13 @@ fun openApiJson(port: Int): String = """
     "/api/sessions/rules/add-header": {
       "post": {
         "tags": ["Sessions"],
-        "summary": "Add header session rule",
-        "description": "**[Montoya API]** Creates a session handling rule that automatically adds a header (e.g. `Authorization: Bearer ...`) to matching requests. Persists to Burp user options.",
+        "summary": "Add header session rule (not supported by Burp)",
+        "description": "**Always returns 501.** Burp has no add-header session handling action - its actions are use cookies, set cookie/param, check session, in-browser recovery, run macro and invoke extension - so such a rule cannot be created. Earlier versions answered 200 while Burp silently discarded the rule. To add a header to outgoing requests use `POST /api/proxy/match-replace` with `rule_type` `request_header`.",
         "operationId": "addHeaderSessionRule",
+        "deprecated": true,
         "x-api-source": "montoya",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "${'$'}ref": "#/components/schemas/AddHeaderRuleRequest" },
-              "example": {
-                "header_name": "Authorization",
-                "header_value": "Bearer eyJhbGciOiJIUzI1NiJ9...",
-                "name": "JWT Bearer token",
-                "scope_url": "https://app.example.com"
-              }
-            }
-          }
-        },
         "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/MessageResponse" } } } }
+          "501": { "description": "Not supported by Burp", "content": { "application/json": { "schema": { "${'$'}ref": "#/components/schemas/ErrorResponse" } } } }
         }
       }
     },
@@ -3225,10 +3212,8 @@ ${extraPaths()}
       "ErrorResponse": {
         "type": "object",
         "description": "Standard error body",
-        "required": ["message"],
         "properties": {
-          "error":   { "type": "string", "description": "Short error code or category" },
-          "message": { "type": "string", "description": "Human-readable error description" }
+          "error":             { "type": "string" }
         }
       },
 
@@ -3250,27 +3235,79 @@ ${extraPaths()}
         }
       },
 
-      "HttpEntry": {
+      "ProxyEntry": {
         "type": "object",
         "description": "A single HTTP request/response pair from proxy history or site map",
         "properties": {
-          "id":              { "type": "integer", "description": "Unique entry ID" },
-          "host":            { "type": "string",  "description": "Target hostname" },
-          "port":            { "type": "integer", "description": "Target port" },
-          "use_https":       { "type": "boolean", "description": "Whether HTTPS was used" },
-          "url":             { "type": "string",  "description": "Full request URL" },
-          "method":          { "type": "string",  "description": "HTTP method" },
-          "path":            { "type": "string",  "description": "Request path including query string" },
-          "status_code":     { "type": "integer", "description": "HTTP response status code" },
-          "mime_type":       { "type": "string",  "description": "Response MIME type" },
-          "request_length":  { "type": "integer", "description": "Request byte length" },
-          "response_length": { "type": "integer", "description": "Response byte length" },
-          "note":            { "type": "string",  "description": "Annotation note (if any)" },
-          "highlight":       { "type": "string",  "description": "Highlight colour: RED, ORANGE, YELLOW, GREEN, CYAN, BLUE, PINK, MAGENTA, GRAY" },
-          "request":         { "type": "string",  "description": "Raw HTTP request (only present when include_body=true)" },
-          "response":        { "type": "string",  "description": "Raw HTTP response (only present when include_body=true)" },
-          "timestamp":       { "type": "string",  "description": "ISO-8601 timestamp when this entry was recorded" },
-          "in_scope":        { "type": "boolean", "description": "Whether the URL is in Burp's target scope" }
+          "id":                   { "type": "integer", "description": "Unique entry ID" },
+          "url":                  { "type": "string",  "description": "Full request URL" },
+          "method":               { "type": "string",  "description": "HTTP method" },
+          "host":                 { "type": "string",  "description": "Target hostname" },
+          "port":                 { "type": "integer", "description": "Target port" },
+          "secure":               { "type": "boolean", "description": "Whether HTTPS was used" },
+          "status":               { "type": "integer", "nullable": true, "description": "HTTP response status code. Null when no response was received." },
+          "mime_type":            { "type": "string",  "nullable": true, "description": "Response MIME type" },
+          "has_response":         { "type": "boolean", "description": "Whether a response was received" },
+          "edited":               { "type": "boolean", "description": "Whether proxy match-and-replace modified this request" },
+          "listener_port":        { "type": "integer", "description": "Proxy listener port the request arrived on" },
+          "time":                 { "type": "string",  "description": "When Burp recorded this entry" },
+          "timing_ms":            { "type": "integer", "nullable": true, "description": "Round-trip time in milliseconds" },
+          "request_length":       { "type": "integer", "description": "Request byte length" },
+          "response_length":      { "type": "integer", "description": "Response byte length" },
+          "notes":                { "type": "string",  "nullable": true, "description": "Annotation note, if any" },
+          "highlight":            { "type": "string",  "nullable": true, "description": "Highlight colour: NONE, RED, ORANGE, YELLOW, GREEN, CYAN, BLUE, PINK, MAGENTA, GRAY" },
+          "request":              { "type": "string",  "nullable": true, "description": "Raw HTTP request. Only present when include_body=true." },
+          "response":             { "type": "string",  "nullable": true, "description": "Raw HTTP response. Only present when include_body=true." },
+          "final_request":        { "type": "string",  "nullable": true, "description": "Request as actually sent, after proxy modifications" },
+          "original_response":    { "type": "string",  "nullable": true, "description": "Response before any proxy modifications" },
+          "http_service_string":  { "type": "string",  "description": "Burp's host:port service identifier" },
+          "request_body":         { "type": "string",  "nullable": true, "description": "Request body only, without headers" },
+          "request_http_version": { "type": "string",  "nullable": true, "description": "HTTP version of the request, e.g. HTTP/2" }
+        }
+      },
+
+      "HttpEntry": {
+        "type": "object",
+        "description": "A request/response pair as returned by the site map, scanner findings and the request engine",
+        "properties": {
+          "url":             { "type": "string" },
+          "method":          { "type": "string",  "nullable": true },
+          "status":          { "type": "integer", "nullable": true },
+          "request_length":  { "type": "integer" },
+          "response_length": { "type": "integer" },
+          "notes":           { "type": "string" },
+          "highlight":       { "type": "string",  "nullable": true },
+          "request":         { "type": "string",  "nullable": true, "description": "Only present when include_body=true" },
+          "response":        { "type": "string",  "nullable": true, "description": "Only present when include_body=true" }
+        }
+      },
+
+      "ResponseSearchMatch": {
+        "type": "object",
+        "description": "One proxy entry whose response body matched the regex",
+        "properties": {
+          "url":         { "type": "string" },
+          "match_count": { "type": "integer" },
+          "snippets":    { "type": "array", "items": { "type": "string" } }
+        }
+      },
+
+      "ScanIssueFull": {
+        "type": "object",
+        "description": "A Burp scanner issue with its definition and the requests that triggered it",
+        "properties": {
+          "name":             { "type": "string",  "nullable": true },
+          "detail":           { "type": "string",  "nullable": true },
+          "remediation":      { "type": "string",  "nullable": true },
+          "base_url":         { "type": "string",  "nullable": true },
+          "severity":         { "type": "string",  "enum": ["HIGH", "MEDIUM", "LOW", "INFORMATION", "FALSE_POSITIVE"] },
+          "confidence":       { "type": "string",  "enum": ["CERTAIN", "FIRM", "TENTATIVE"] },
+          "host":             { "type": "string",  "nullable": true },
+          "port":             { "type": "integer", "nullable": true },
+          "background":       { "type": "string",  "nullable": true },
+          "typical_severity": { "type": "string",  "nullable": true },
+          "type_index":       { "type": "integer", "nullable": true },
+          "flagged_requests": { "type": "array", "items": { "${'$'}ref": "#/components/schemas/HttpEntry" } }
         }
       },
 
@@ -3278,12 +3315,12 @@ ${extraPaths()}
         "type": "object",
         "description": "A single WebSocket message from proxy history",
         "properties": {
-          "id":        { "type": "integer" },
-          "url":       { "type": "string",  "description": "WebSocket upgrade URL" },
-          "direction": { "type": "string",  "enum": ["CLIENT_TO_SERVER", "SERVER_TO_CLIENT"] },
-          "message":   { "type": "string",  "description": "Message content (text frame) or base64 (binary frame)" },
-          "is_binary": { "type": "boolean" },
-          "timestamp": { "type": "string" }
+          "direction":         { "type": "string" },
+          "payload":           { "type": "string", "nullable": true },
+          "notes":             { "type": "string" },
+          "websocket_id":      { "type": "integer", "nullable": true },
+          "edited_payload":    { "type": "string", "nullable": true },
+          "upgrade_request_url": { "type": "string", "nullable": true }
         }
       },
 
@@ -3294,7 +3331,7 @@ ${extraPaths()}
         "properties": {
           "regex":      { "type": "string",  "description": "Java-compatible regex to match against request text" },
           "note":       { "type": "string",  "description": "Annotation note to set on matching items" },
-          "highlight":  { "type": "string",  "enum": ["RED", "ORANGE", "YELLOW", "GREEN", "CYAN", "BLUE", "PINK", "MAGENTA", "GRAY"], "description": "Highlight colour to apply" },
+          "highlight":  { "type": "string",  "enum": ["NONE", "RED", "ORANGE", "YELLOW", "GREEN", "CYAN", "BLUE", "PINK", "MAGENTA", "GRAY"], "description": "Highlight colour to apply" },
           "scope_only": { "type": "boolean", "default": false, "description": "Only annotate items whose URL is in scope" },
           "limit":      { "type": "integer", "default": 1000,  "description": "Maximum number of items to annotate" }
         }
@@ -3363,9 +3400,10 @@ ${extraPaths()}
         "type": "object",
         "description": "Result of sending an HTTP request",
         "properties": {
-          "request":  { "type": "string",  "description": "Echoed raw request as actually sent by Burp" },
-          "response": { "type": "string",  "nullable": true, "description": "Raw HTTP response, or null if connection failed" },
-          "error":    { "type": "string",  "nullable": true, "description": "Error message if connection failed (502 case)" }
+          "request":           { "type": "string" },
+          "response":          { "type": "string", "nullable": true },
+          "status":            { "type": "integer", "nullable": true },
+          "ai_notes":          { "type": "string", "nullable": true }
         }
       },
 
@@ -3396,17 +3434,14 @@ ${extraPaths()}
 
       "ParsedRequestDto": {
         "type": "object",
-        "description": "Structured representation of a parsed HTTP request",
         "properties": {
-          "method":       { "type": "string" },
-          "url":          { "type": "string" },
-          "path":         { "type": "string" },
-          "query":        { "type": "string" },
-          "http_version": { "type": "string" },
-          "headers":      { "type": "array", "items": { "${'$'}ref": "#/components/schemas/HeaderDto" } },
-          "body":         { "type": "string", "nullable": true },
-          "body_length":  { "type": "integer" },
-          "content_type": { "type": "string", "nullable": true }
+          "method":      { "type": "string" },
+          "path":        { "type": "string", "description": "Path including query string" },
+          "url":         { "type": "string" },
+          "headers":     { "type": "array", "items": { "type": "string" } },
+          "parameters":  { "type": "array", "items": { "type": "object" }, "description": "Parameters Burp extracted, each with name, value and type" },
+          "body":        { "type": "string", "nullable": true },
+          "body_length": { "type": "integer" }
         }
       },
 
@@ -3422,16 +3457,11 @@ ${extraPaths()}
 
       "ParsedResponseDto": {
         "type": "object",
-        "description": "Structured representation of a parsed HTTP response",
         "properties": {
-          "status_code":  { "type": "integer" },
-          "reason":       { "type": "string" },
-          "http_version": { "type": "string" },
-          "headers":      { "type": "array", "items": { "${'$'}ref": "#/components/schemas/HeaderDto" } },
-          "body":         { "type": "string", "nullable": true },
-          "body_length":  { "type": "integer" },
-          "content_type": { "type": "string", "nullable": true },
-          "mime_type":    { "type": "string", "nullable": true }
+          "status_code": { "type": "integer" },
+          "headers":     { "type": "array", "items": { "type": "string" } },
+          "body":        { "type": "string", "nullable": true },
+          "body_length": { "type": "integer" }
         }
       },
 
@@ -3497,11 +3527,8 @@ ${extraPaths()}
         "type": "object",
         "description": "A single insertion point identified by Burp",
         "properties": {
-          "name":  { "type": "string",  "description": "Parameter name or identifier" },
-          "value": { "type": "string",  "description": "Current parameter value" },
-          "type":  { "type": "string",  "description": "Insertion point type: URL_PARAMETER, BODY_PARAMETER, COOKIE, etc." },
-          "start": { "type": "integer", "description": "Byte offset of value start in the request" },
-          "end":   { "type": "integer", "description": "Byte offset of value end in the request" }
+          "start":             { "type": "integer" },
+          "end":               { "type": "integer" }
         }
       },
 
@@ -3615,11 +3642,11 @@ ${extraPaths()}
         "type": "object",
         "description": "Burp scanner task status",
         "properties": {
-          "id":          { "type": "string",  "description": "Task ID" },
-          "type":        { "type": "string",  "description": "Task type: AUDIT or CRAWL" },
-          "status":      { "type": "string",  "description": "Task status: RUNNING, FINISHED, CANCELLED, FAILED" },
-          "issue_count": { "type": "integer", "description": "Number of issues found so far" },
-          "created_at":  { "type": "string",  "description": "ISO-8601 creation timestamp" }
+          "id":                { "type": "string" },
+          "status":            { "type": "string" },
+          "request_count":     { "type": "integer" },
+          "error_count":       { "type": "integer" },
+          "issue_count":       { "type": "integer", "nullable": true }
         }
       },
 
@@ -3639,16 +3666,12 @@ ${extraPaths()}
         "type": "object",
         "description": "A Burp scanner issue",
         "properties": {
-          "id":          { "type": "integer" },
-          "name":        { "type": "string" },
-          "severity":    { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW", "INFORMATION"] },
-          "confidence":  { "type": "string", "enum": ["CERTAIN", "FIRM", "TENTATIVE"] },
-          "url":         { "type": "string" },
-          "host":        { "type": "string" },
-          "port":        { "type": "integer" },
+          "name":        { "type": "string", "nullable": true },
           "detail":      { "type": "string", "nullable": true },
           "remediation": { "type": "string", "nullable": true },
-          "background":  { "type": "string", "nullable": true }
+          "base_url":    { "type": "string", "nullable": true },
+          "severity":    { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW", "INFORMATION", "FALSE_POSITIVE"] },
+          "confidence":  { "type": "string", "enum": ["CERTAIN", "FIRM", "TENTATIVE"] }
         }
       },
 
@@ -3675,7 +3698,7 @@ ${extraPaths()}
         "type": "object",
         "description": "Task engine running state",
         "properties": {
-          "running": { "type": "boolean", "description": "true if the task engine is currently processing tasks" }
+          "state": { "type": "string", "description": "Task engine state, e.g. RUNNING or PAUSED" }
         }
       },
 
@@ -3692,7 +3715,7 @@ ${extraPaths()}
         "type": "object",
         "description": "Options for Collaborator payload generation",
         "properties": {
-          "options":     { "type": "array", "items": { "type": "string", "enum": ["DNS", "HTTP", "SMTP", "SMTPS"] }, "description": "Interaction types to enable on the payload" },
+          "options":     { "type": "array", "items": { "type": "string", "enum": ["DNS", "HTTP", "SMTP"] }, "description": "Interaction types to enable on the payload" },
           "custom_data": { "type": "string", "nullable": true, "description": "Optional custom data embedded in the payload" }
         }
       },
@@ -3711,14 +3734,12 @@ ${extraPaths()}
         "type": "object",
         "description": "A recorded Collaborator interaction",
         "properties": {
-          "id":             { "type": "string" },
-          "type":           { "type": "string", "enum": ["DNS", "HTTP", "SMTP", "SMTPS"] },
-          "timestamp":      { "type": "string", "description": "ISO-8601 timestamp" },
-          "client_ip":      { "type": "string" },
-          "interaction_id": { "type": "string" },
-          "custom_data":    { "type": "string", "nullable": true },
-          "raw_query":      { "type": "string", "nullable": true, "description": "Raw DNS query or HTTP request" },
-          "raw_response":   { "type": "string", "nullable": true }
+          "id":                { "type": "string" },
+          "type":              { "type": "string" },
+          "time":              { "type": "string" },
+          "client_ip":         { "type": "string" },
+          "client_port":       { "type": "integer" },
+          "custom_data":       { "type": "string", "nullable": true }
         }
       },
 
@@ -4198,7 +4219,7 @@ ${extraPaths()}
           "detail":      { "type": "string" },
           "remediation": { "type": "string" },
           "base_url":    { "type": "string" },
-          "severity":    { "type": "string", "enum": ["INFORMATION", "LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+          "severity":    { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW", "INFORMATION", "FALSE_POSITIVE"] },
           "confidence":  { "type": "string", "enum": ["TENTATIVE", "FIRM", "CERTAIN"] },
           "host":        { "type": "string" },
           "port":        { "type": "integer" }
@@ -4258,7 +4279,7 @@ ${extraPaths()}
         "type": "object",
         "required": ["type", "name"],
         "properties": {
-          "type":  { "type": "string", "enum": ["URL", "BODY", "COOKIE", "JSON", "XML", "MULTIPART_ATTRIBUTE", "PATH"] },
+          "type":  { "type": "string", "enum": ["URL", "BODY", "COOKIE", "XML", "XML_ATTRIBUTE", "MULTIPART_ATTRIBUTE", "JSON"] },
           "name":  { "type": "string" },
           "value": { "type": "string", "nullable": true }
         }
@@ -4352,24 +4373,14 @@ ${extraPaths()}
         }
       },
 
-      "AddHeaderRuleRequest": {
-        "type": "object",
-        "required": ["header_name", "header_value"],
-        "properties": {
-          "header_name":  { "type": "string", "description": "Header name, e.g. Authorization" },
-          "header_value": { "type": "string", "description": "Header value, e.g. Bearer eyJ..." },
-          "name":         { "type": "string", "nullable": true, "description": "Rule name (auto-generated if omitted)" },
-          "scope_url":    { "type": "string", "nullable": true, "description": "Limit rule to this URL prefix" }
-        }
-      },
-
       "InterceptRuleRequest": {
         "type": "object",
         "required": ["match_type", "match_relationship", "match_condition"],
         "properties": {
           "enabled":            { "type": "boolean", "default": true },
-          "match_type":         { "type": "string", "enum": ["URL", "METHOD", "LISTENER_PORT", "HTTP_VERSION", "REQUEST_HAS_PARAMS", "MIME_TYPE", "STATUS_CODE", "TAG", "HEADER", "ATTRIBUTE"] },
-          "match_relationship": { "type": "string", "enum": ["MATCHES", "NOT_MATCHES", "CONTAINS", "NOT_CONTAINS"] },
+          "boolean_operator":   { "type": "string", "enum": ["and", "or"], "default": "or", "description": "How this rule combines with the previous one. Burp discards any rule that omits it." },
+          "match_type":         { "type": "string", "enum": ["url", "http_method", "file_extension", "content_type_header", "status_code", "request"], "description": "Burp's own vocabulary, not a Montoya enum. Any other value makes Burp discard the rule." },
+          "match_relationship": { "type": "string", "enum": ["matches", "does_not_match", "is_in_target_scope", "was_intercepted", "was_modified", "contains_parameters"] },
           "match_condition":    { "type": "string", "description": "Value to match against" }
         }
       }

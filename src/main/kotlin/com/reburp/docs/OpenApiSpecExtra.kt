@@ -20,6 +20,8 @@ private fun joinFragments(fragments: List<String>): String {
 
 internal fun extraTags(): String = joinFragments(
     listOf(
+        """{ "name": "Activity Log", "description": "reburp's own persisted record of REST calls" }""",
+        """{ "name": "Bambda",       "description": "Bambda script import and request-chain generation" }""",
         """{ "name": "Numbers",      "description": "Base conversion between binary, octal, decimal and hex" }""",
         """{ "name": "JSON",         "description": "JSON validation, pointer reads and edits, and structural inspection" }""",
         """{ "name": "Bytes",        "description": "Raw byte search, slicing and inspection" }""",
@@ -48,7 +50,8 @@ internal fun extraPaths(): String = joinFragments(
         corePaths(),
         messagePaths(),
         eventsPaths(),
-        requestEnginePaths()
+        requestEnginePaths(),
+        undocumentedPaths()
     )
 )
 
@@ -59,6 +62,7 @@ internal fun extraSchemas(): String = joinFragments(
         coreSchemas(),
         messageSchemas(),
         eventsSchemas(),
-        requestEngineSchemas()
+        requestEngineSchemas(),
+        undocumentedSchemas()
     )
 )

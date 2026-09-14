@@ -182,7 +182,7 @@ internal fun requestEngineSchemas(): String = """
       "RequestResultDto": { "type": "object", "properties": {
         "label": { "type": "string", "nullable": true },
         "status": { "type": "string", "description": "RequestStatus: RESPONDED, TIMED_OUT, CONNECTION_FAILED or DROPPED." },
-        "request_response": { "${'$'}ref": "#/components/schemas/HttpEntryDto" } } },
+        "request_response": { "${'$'}ref": "#/components/schemas/HttpEntry" } } },
       "ExecutionResultDto": { "type": "object", "properties": {
         "cancelled": { "type": "boolean" }, "timed_out": { "type": "boolean" },
         "stats": { "${'$'}ref": "#/components/schemas/ExecutionStatsDto" },

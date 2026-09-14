@@ -792,22 +792,25 @@ data class SendWithAuthRequest(
     val retry_on: List<Int> = listOf(401, 403)
 )
 
-// ── Session rules ──────────────────────────────────────────────────────────────
-
-@Serializable
-data class AddHeaderRuleRequest(
-    val header_name: String,
-    val header_value: String,
-    val name: String? = null,
-    val scope_url: String? = null
-)
-
 // ── Intercept rules ────────────────────────────────────────────────────────────
 
 @Serializable
 data class InterceptRuleRequest(
     val enabled: Boolean = true,
+    /**
+     * How this rule combines with the previous one. Burp drops any rule that omits it.
+     * Allowed: and | or
+     */
+    val boolean_operator: String = "or",
+    /**
+     * Burp's own vocabulary, not a Montoya enum.
+     * Allowed: url | http_method | file_extension | content_type_header | status_code | request
+     */
     val match_type: String,
+    /**
+     * Allowed: matches | does_not_match | is_in_target_scope | was_intercepted |
+     *          was_modified | contains_parameters
+     */
     val match_relationship: String,
     val match_condition: String
 )

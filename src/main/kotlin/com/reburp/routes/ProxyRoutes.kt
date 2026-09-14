@@ -192,12 +192,12 @@ fun Routing.proxyRoutes(api: MontoyaApi) {
 
         get("/intercept/rules") {
             runCatching {
-                val json = api.burpSuite().exportProjectOptionsAsJson("proxy")
-                val root = Json.parseToJsonElement(json).jsonObject
-                val proxy = root["proxy"]?.jsonObject ?: root
-                val clientRules = proxy["intercept_client"]?.jsonObject?.get("rules")?.jsonArray ?: JsonArray(emptyList())
-                val serverRules = proxy["intercept_server"]?.jsonObject?.get("rules")?.jsonArray ?: JsonArray(emptyList())
-                call.respond(mapOf("client_rules" to clientRules, "server_rules" to serverRules))
+                call.respond(
+                    mapOf(
+                        "client_rules" to interceptRules(api, CLIENT_INTERCEPT),
+                        "server_rules" to interceptRules(api, SERVER_INTERCEPT)
+                    )
+                )
             }.onFailure { call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error")) }
         }
 
@@ -206,22 +206,32 @@ fun Routing.proxyRoutes(api: MontoyaApi) {
                 return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse(it.message ?: "Bad body"))
             }
             runCatching {
-                val json = api.burpSuite().exportProjectOptionsAsJson("proxy")
-                val root = Json.parseToJsonElement(json).jsonObject.toMutableMap()
-                val proxy = root["proxy"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
-                val clientSection = proxy["intercept_client"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
-                val rules = clientSection["rules"]?.jsonArray?.toMutableList() ?: mutableListOf()
+                val rules = interceptRules(api, CLIENT_INTERCEPT).toMutableList()
+                val before = rules.size
                 rules.add(buildJsonObject {
+                    // boolean_operator is not optional: Burp drops any rule that omits it.
+                    put("boolean_operator", req.boolean_operator)
                     put("enabled", req.enabled)
                     put("match_type", req.match_type)
                     put("match_relationship", req.match_relationship)
                     put("match_condition", req.match_condition)
                 })
-                clientSection["rules"] = JsonArray(rules)
-                proxy["intercept_client"] = JsonObject(clientSection)
-                root["proxy"] = JsonObject(proxy)
-                api.burpSuite().importProjectOptionsFromJson(JsonObject(root).toString())
-                call.respond(MessageResponse("Client intercept rule added"))
+                applyInterceptRules(api, CLIENT_INTERCEPT, JsonArray(rules))
+
+                val after = interceptRules(api, CLIENT_INTERCEPT).size
+                if (after == before) {
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        ErrorResponse(
+                            "Burp discarded the rule (still $before). Check match_type and " +
+                                "match_relationship: Burp accepts only its own vocabulary, such as " +
+                                "url, http_method, file_extension, content_type_header, status_code, " +
+                                "request and matches, does_not_match, is_in_target_scope."
+                        )
+                    )
+                } else {
+                    call.respond(MessageResponse("Client intercept rule added ($after total)"))
+                }
             }.onFailure { if (!call.response.isCommitted) call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error")) }
         }
 
@@ -229,20 +239,49 @@ fun Routing.proxyRoutes(api: MontoyaApi) {
             val index = call.parameters["index"]?.toIntOrNull()
                 ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("'index' must be integer"))
             runCatching {
-                val json = api.burpSuite().exportProjectOptionsAsJson("proxy")
-                val root = Json.parseToJsonElement(json).jsonObject.toMutableMap()
-                val proxy = root["proxy"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
-                val clientSection = proxy["intercept_client"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
-                val rules = clientSection["rules"]?.jsonArray?.toMutableList() ?: mutableListOf()
-                if (index < 0 || index >= rules.size)
-                    return@runCatching call.respond(HttpStatusCode.NotFound, ErrorResponse("Index $index out of range"))
+                val rules = interceptRules(api, CLIENT_INTERCEPT).toMutableList()
+                val before = rules.size
+                if (index < 0 || index >= before)
+                    return@runCatching call.respond(HttpStatusCode.NotFound, ErrorResponse("Index $index out of range ($before rules)"))
                 rules.removeAt(index)
-                clientSection["rules"] = JsonArray(rules)
-                proxy["intercept_client"] = JsonObject(clientSection)
-                root["proxy"] = JsonObject(proxy)
-                api.burpSuite().importProjectOptionsFromJson(JsonObject(root).toString())
-                call.respond(MessageResponse("Client intercept rule at index $index deleted"))
+                applyInterceptRules(api, CLIENT_INTERCEPT, JsonArray(rules))
+
+                val after = interceptRules(api, CLIENT_INTERCEPT).size
+                if (after == before) {
+                    call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Burp did not persist the deletion (still $before rules)."))
+                } else {
+                    call.respond(MessageResponse("Client intercept rule at index $index deleted ($after remaining)"))
+                }
             }.onFailure { if (!call.response.isCommitted) call.respond(HttpStatusCode.InternalServerError, ErrorResponse(it.message ?: "Error")) }
         }
     }
+}
+
+// ── Intercept rule config access ──────────────────────────────────────────────
+//
+// [Montoya Config] - intercept rules have no Montoya API, so they are read and written
+// through the proxy section of the project config.
+//
+// Burp names these sections "intercept_client_requests" and "intercept_server_responses".
+// Earlier code looked for "intercept_client"/"intercept_server", which never matched: reads
+// always returned empty arrays, and writes created stray keys Burp ignored while the endpoint
+// answered 200. Imports carry only the touched section because Burp merges on import.
+
+private const val CLIENT_INTERCEPT = "intercept_client_requests"
+private const val SERVER_INTERCEPT = "intercept_server_responses"
+
+private fun interceptSection(api: MontoyaApi, section: String): JsonObject? = runCatching {
+    val root = Json.parseToJsonElement(api.burpSuite().exportProjectOptionsAsJson("proxy")).jsonObject
+    (root["proxy"]?.jsonObject ?: root)[section]?.jsonObject
+}.getOrNull()
+
+private fun interceptRules(api: MontoyaApi, section: String): JsonArray =
+    runCatching { interceptSection(api, section)?.get("rules")?.jsonArray }.getOrNull() ?: JsonArray(emptyList())
+
+private fun applyInterceptRules(api: MontoyaApi, section: String, rules: JsonArray) {
+    // Preserve the section's sibling settings (do_intercept and the auto-fix toggles).
+    val updated = (interceptSection(api, section)?.toMutableMap() ?: mutableMapOf())
+    updated["rules"] = rules
+    val doc = buildJsonObject { put("proxy", buildJsonObject { put(section, JsonObject(updated)) }) }
+    api.burpSuite().importProjectOptionsFromJson(doc.toString())
 }

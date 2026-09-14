@@ -134,18 +134,24 @@ private fun extractMatchReplaceRules(config: JsonElement): List<MatchReplaceRule
             rule_type = obj["rule_type"]?.jsonPrimitive?.contentOrNull ?: "",
             string_match = obj["string_match"]?.jsonPrimitive?.contentOrNull ?: "",
             string_replace = obj["string_replace"]?.jsonPrimitive?.contentOrNull ?: "",
-            is_simple_match = obj["is_simple_match"]?.jsonPrimitive?.booleanOrNull ?: false,
+            // Burp expresses literal-vs-regex as "category", and has no is_simple_match field:
+            // it silently dropped the one written here, so every rule behaved as a regex no
+            // matter what the caller asked for, and reads always reported false.
+            is_simple_match = obj["category"]?.jsonPrimitive?.contentOrNull == CATEGORY_LITERAL,
             enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
             comment = obj["comment"]?.jsonPrimitive?.contentOrNull
         )
     }.filterNotNull()
 }
 
+private const val CATEGORY_LITERAL = "literal"
+private const val CATEGORY_REGEX = "regex"
+
 private fun ruleToJsonObject(rule: MatchReplaceRule): JsonObject = buildJsonObject {
+    put("category", if (rule.is_simple_match) CATEGORY_LITERAL else CATEGORY_REGEX)
     put("rule_type", rule.rule_type)
     put("string_match", rule.string_match)
     put("string_replace", rule.string_replace)
-    put("is_simple_match", rule.is_simple_match)
     put("enabled", rule.enabled)
     put("comment", rule.comment ?: "")
 }

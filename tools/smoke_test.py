@@ -212,21 +212,96 @@ def main():
     listed = c.check("list session rules", "GET", "/api/sessions/rules",
                      verify=lambda p: None if isinstance(p, list) else f"not a list: {p}")
     if isinstance(listed, list):
-        before = len(listed)
-        # Round-trip a rule. Adding used to answer 200 for a write Burp silently dropped,
-        # so the add is only meaningful if the follow-up read sees it.
-        added = c.check("add session rule", "POST", "/api/sessions/rules/add-header",
-                        {"header_name": "X-Reburp-Smoke", "header_value": "1",
-                         "name": "reburp smoke test"})
-        if added is not None:
-            grew = c.check("added rule is readable back", "GET", "/api/sessions/rules",
-                           verify=lambda p: None if isinstance(p, list) and len(p) == before + 1
-                           else f"wanted {before + 1} rules, got "
-                                f"{len(p) if isinstance(p, list) else p}")
-            # Clean up whether or not the count assertion held, so repeat runs stay honest.
-            if isinstance(grew, list):
-                c.check("delete session rule", "DELETE", f"/api/sessions/rules/{before}",
-                        verify=lambda p: None)
+        # Reading rules at all proves the config path resolves: a project with session
+        # handling configured must report at least the rules Burp ships with.
+        c.check("rules carry a description", "GET", "/api/sessions/rules",
+                verify=lambda p: None if not p or p[0].get("description")
+                else f"rule without description: {p[0]}")
+        # Burp has no add-header action, so this must refuse rather than claim success.
+        c.check("add-header refuses instead of lying", "POST",
+                "/api/sessions/rules/add-header", {}, expect=501,
+                verify=lambda p: None if "match-replace" in (p or {}).get("error", "")
+                else f"no pointer to the working alternative: {p}")
+        # Out-of-range delete must 404 against the real count, not a phantom empty list.
+        c.check("delete reports the real rule count", "DELETE",
+                "/api/sessions/rules/9999", expect=404,
+                verify=lambda p: None if f"({len(listed)} rules)" in (p or {}).get("error", "")
+                else f"wrong count in message: {p}")
+
+    print("\nScope")
+    # The spec documents /api/scope/rules; it used to 404 because the handler was only
+    # registered at /api/scope.
+    c.check("documented scope path answers", "GET", "/api/scope/rules",
+            verify=lambda p: None if isinstance(p, dict) and "include" in p and "exclude" in p
+            else f"unexpected shape: {p}")
+
+    print("\nIntercept rules")
+    # Read from Burp's real config section. The old code read intercept_client /
+    # intercept_server, which do not exist, so both lists were always empty.
+    ir = c.check("intercept rules are readable", "GET", "/api/proxy/intercept/rules",
+                 verify=lambda p: None if isinstance(p, dict) and p.get("client_rules")
+                 else "no client rules - the config section name is wrong")
+    if isinstance(ir, dict) and ir.get("client_rules"):
+        c.check("intercept rules carry Burp's real fields", "GET",
+                "/api/proxy/intercept/rules",
+                verify=lambda p: None
+                if all(k in p["client_rules"][0] for k in ("match_type", "boolean_operator"))
+                else f"missing real fields: {p['client_rules'][0]}")
+    # Burp drops any rule whose vocabulary it does not recognise, so this must refuse
+    # rather than report success.
+    c.check("intercept rejects an invented match_type", "POST",
+            "/api/proxy/intercept/rules/client",
+            {"match_type": "MIME_TYPE", "match_relationship": "matches",
+             "match_condition": "text"}, expect=500,
+            verify=lambda p: None if "vocabulary" in (p or {}).get("error", "")
+            else f"unhelpful error: {p}")
+
+    print("\nMatch and replace")
+    listed_mr = c.check("list match/replace rules", "GET", "/api/proxy/match-replace",
+                        verify=lambda p: None if isinstance(p, dict) and "rules" in p
+                        else f"unexpected shape: {p}")
+    if isinstance(listed_mr, dict):
+        idx = listed_mr.get("count", len(listed_mr.get("rules", [])))
+        # is_simple_match maps to Burp's "category". It used to be written as a field Burp
+        # discards, so a literal rule silently became a regex one.
+        made = c.check("create a literal match rule", "POST", "/api/proxy/match-replace",
+                       {"rule_type": "request_header", "string_match": "X-Reburp-Smoke",
+                        "string_replace": "X-Reburp-Smoke: 1", "is_simple_match": True,
+                        "enabled": False, "comment": "reburp smoke test"}, expect=201)
+        if made is not None:
+            c.check("literal flag survives the round trip", "GET",
+                    "/api/proxy/match-replace",
+                    verify=lambda p: None if any(
+                        r.get("comment") == "reburp smoke test" and r.get("is_simple_match")
+                        for r in p.get("rules", []))
+                    else "is_simple_match lost - category mapping is broken")
+            c.check("delete the test rule", "DELETE", f"/api/proxy/match-replace/{idx}")
+
+    print("\nResponse shapes match the spec")
+    # The documented schema had drifted from what these endpoints return: proxy history was
+    # documented with status_code / note / timestamp while it actually sends status / notes /
+    # time, so a client written from the spec read nothing.
+    c.check("proxy history matches ProxyEntry", "GET", "/api/proxy/history?limit=1",
+            verify=lambda p: None if not p or (
+                {"status", "notes", "time", "secure"} <= set(p[0])
+                and not {"status_code", "note", "timestamp", "use_https"} & set(p[0]))
+            else f"field names drifted from the schema: {sorted(p[0])}")
+    parsed = c.check("parsed response matches schema", "POST", "/api/http/parse/response",
+                     {"response": "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\nhi"},
+                     verify=lambda p: None if {"status_code", "headers", "body",
+                                               "body_length"} == set(p)
+                     else f"unexpected fields: {sorted(p)}")
+    c.check("task engine state matches schema", "GET", "/api/config/tasks",
+            verify=lambda p: None if "state" in p and "running" not in p
+            else f"expected 'state', got {sorted(p)}")
+
+    print("\nIssue enums")
+    # The spec used to advertise CRITICAL, which Montoya has no constant for.
+    c.check("rejects a severity Montoya lacks", "POST", "/api/issues",
+            {"name": "probe", "detail": "d", "severity": "CRITICAL",
+             "confidence": "CERTAIN", "base_url": "https://example.com/"}, expect=400,
+            verify=lambda p: None if "Allowed values" in (p or {}).get("error", "")
+            else f"error does not name the allowed values: {p}")
 
     passed = sum(1 for _, s, _ in c.results if s == PASS)
     failed = sum(1 for _, s, _ in c.results if s == FAIL)
