@@ -34,6 +34,17 @@ scan, decoding a token - becomes a JSON call an agent or a `curl` line can make.
 It pairs with the [`burp-interaction`](.claude/skills/burp-interaction) agent skill so an AI
 assistant can drive Burp directly.
 
+- [What reburp unlocks](#what-reburp-unlocks)
+- [Install](#install)
+- [Load into Burp Suite](#load-into-burp-suite)
+- [API docs](#api-docs)
+- [Endpoints](#endpoints)
+- [Quick start](#quick-start)
+- [Security](#security)
+- [API coverage](#api-coverage)
+- [Notes](#notes)
+- [Contributing](#contributing)
+
 ## What reburp unlocks
 
 Burp features your agent can now drive over REST:
@@ -45,17 +56,6 @@ Burp features your agent can now drive over REST:
 - **Engagement tools** - generate a CSRF PoC, discover content, find references, send to decoder
 - **Access-control testing** - replay a request with and without its token and diff the responses, Autorize-style (BOLA/BFLA)
 - **BChecks & Bambda** - import custom scan rules, build filter chains, raise custom issues
-
-- [What reburp unlocks](#what-reburp-unlocks)
-- [Install](#install)
-- [Load into Burp Suite](#load-into-burp-suite)
-- [API docs](#api-docs)
-- [Endpoints](#endpoints)
-- [Quick start](#quick-start)
-- [Security](#security)
-- [API coverage](#api-coverage)
-- [Notes](#notes)
-- [Contributing](#contributing)
 
 ## Install
 
@@ -69,6 +69,7 @@ grab the matching jar from [Releases](https://github.com/forefy/reburp/releases)
 
 | reburp | Minimum Burp Suite (Montoya) |
 |--------|------------------------------|
+| [1.1.1](https://github.com/forefy/reburp/releases/tag/v1.1.1) | 2026.7 |
 | [1.1.0](https://github.com/forefy/reburp/releases/tag/v1.1.0) | 2026.7 |
 | [1.0.x](https://github.com/forefy/reburp/releases/tag/v1.0.1) | 2025.12 |
 
@@ -78,7 +79,7 @@ grab the matching jar from [Releases](https://github.com/forefy/reburp/releases)
 git clone https://github.com/forefy/reburp.git
 cd reburp
 ./gradlew shadowJar
-# Output: build/libs/reburp-1.1.0.jar
+# Output: build/libs/reburp-1.1.1.jar
 ```
 
 If your `JAVA_HOME` isn't set, point it at your JDK:
@@ -91,7 +92,7 @@ JAVA_HOME=/path/to/jdk17 ./gradlew shadowJar
 
 1. Open Burp Suite → **Extensions** → **Installed** → **Add**
 2. Extension type: **Java**
-3. Extension file: `build/libs/reburp-1.1.0.jar`
+3. Extension file: `build/libs/reburp-1.1.1.jar`
 4. Click **Next** - the extension starts automatically on port **9090**
 
 A **reburp** tab appears in Burp showing every REST call as it happens.
@@ -128,7 +129,7 @@ The spec is the source of truth for request and response shapes.
 | Request Engine | `/api/http/engine/` | High-throughput async request engine: resource pools, concurrency limit, throttle, retries, live stats, pause/resume/cancel, results (Burp 2026.x) |
 | Config | `/api/config/` | Get/set project & user options, task engine state |
 | Match & Replace | `/api/proxy/match-replace/` | List, add, remove proxy match-and-replace rules |
-| Sessions | `/api/sessions/` | List and manage session-handling rules |
+| Sessions | `/api/sessions/` | List and delete session-handling rules (Burp has no add-header action) |
 | Engagement | `/api/engagement/` | CSRF PoC generator, content discovery, find references, send to decoder |
 | Bambda | `/api/bambda/` | Import Bambda scripts, generate filter chains |
 | Organizer | `/api/organizer/` | List items, send requests to the Organizer |
