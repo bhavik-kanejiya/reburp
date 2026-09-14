@@ -42,14 +42,14 @@ fun Routing.proxyRoutes(api: MontoyaApi) {
             val listenerPort = p["listener_port"]?.toIntOrNull()
 
             var items = api.proxy().history()
-            if (host != null)        items = items.filter { runCatching { it.host() }.getOrElse { "" }.equals(host, ignoreCase = true) }
-            if (method != null)      items = items.filter { runCatching { it.method() }.getOrElse { "" }.uppercase() == method }
+            if (host != null)        items = items.filter { e -> runCatching { e.host() }.recoverCatching { e.httpService().host() }.getOrElse { "" }.equals(host, ignoreCase = true) }
+            if (method != null)      items = items.filter { e -> runCatching { e.method() }.recoverCatching { e.request().method() }.getOrElse { "" }.uppercase() == method }
             if (mimeType != null)    items = items.filter { runCatching { it.mimeType().name }.getOrNull()?.uppercase() == mimeType }
             if (statusMin != null)   items = items.filter { (it.response()?.statusCode()?.toInt() ?: 0) >= statusMin }
             if (statusMax != null)   items = items.filter { (it.response()?.statusCode()?.toInt() ?: 999) <= statusMax }
             if (editedOnly)          items = items.filter { runCatching { it.edited() }.getOrElse { false } }
             if (hasResponse != null) items = items.filter { (it.response() != null) == hasResponse }
-            if (scopeOnly)           items = items.filter { runCatching { api.scope().isInScope(it.url()) }.getOrElse { false } }
+            if (scopeOnly)           items = items.filter { e -> runCatching { api.scope().isInScope(e.url()) }.recoverCatching { api.scope().isInScope(e.request().url()) }.getOrElse { false } }
             if (listenerPort != null) items = items.filter { runCatching { it.listenerPort() == listenerPort }.getOrElse { false } }
 
             call.respond(items.drop(offset).take(limit).map { it.toProxyEntryDto(includeBody) })

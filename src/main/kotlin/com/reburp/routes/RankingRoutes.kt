@@ -70,7 +70,7 @@ fun Routing.rankingRoutes(api: MontoyaApi) {
                 history = history.filter { runCatching { api.scope().isInScope(it.request().url()) }.getOrElse { false } }
             }
             if (req.host != null) {
-                history = history.filter { runCatching { it.host() }.getOrElse { "" }.equals(req.host, ignoreCase = true) }
+                history = history.filter { e -> runCatching { e.host() }.recoverCatching { e.httpService().host() }.getOrElse { "" }.equals(req.host, ignoreCase = true) }
             }
             val window = history.drop(req.offset).take(req.limit)
             if (window.isEmpty()) {
