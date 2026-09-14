@@ -196,6 +196,38 @@ def main():
             {"name": "Smoke finding", "background": "Background.", "remediation": "Fix it.",
              "typical_severity": "LOW"})
 
+    print("\nExtensions")
+    # These endpoints read Burp's config export, where a wrong lookup path yields an empty
+    # result with a 200 rather than an error. Both shipped broken that way, so assert on
+    # content: reburp itself is loaded whenever this API answers, so the list cannot be empty.
+    c.check("extensions list is not empty", "GET", "/api/extensions",
+            verify=lambda p: None if isinstance(p, list) and p
+            else "empty list - the config lookup path is wrong")
+    c.check("extensions carry type and file", "GET", "/api/extensions",
+            verify=lambda p: None if isinstance(p, list) and p
+            and p[0].get("file") and p[0].get("type")
+            else "entries missing type/file - the field mapping is wrong")
+
+    print("\nSessions")
+    listed = c.check("list session rules", "GET", "/api/sessions/rules",
+                     verify=lambda p: None if isinstance(p, list) else f"not a list: {p}")
+    if isinstance(listed, list):
+        before = len(listed)
+        # Round-trip a rule. Adding used to answer 200 for a write Burp silently dropped,
+        # so the add is only meaningful if the follow-up read sees it.
+        added = c.check("add session rule", "POST", "/api/sessions/rules/add-header",
+                        {"header_name": "X-Reburp-Smoke", "header_value": "1",
+                         "name": "reburp smoke test"})
+        if added is not None:
+            grew = c.check("added rule is readable back", "GET", "/api/sessions/rules",
+                           verify=lambda p: None if isinstance(p, list) and len(p) == before + 1
+                           else f"wanted {before + 1} rules, got "
+                                f"{len(p) if isinstance(p, list) else p}")
+            # Clean up whether or not the count assertion held, so repeat runs stay honest.
+            if isinstance(grew, list):
+                c.check("delete session rule", "DELETE", f"/api/sessions/rules/{before}",
+                        verify=lambda p: None)
+
     passed = sum(1 for _, s, _ in c.results if s == PASS)
     failed = sum(1 for _, s, _ in c.results if s == FAIL)
     skipped = sum(1 for _, s, _ in c.results if s == SKIP)
