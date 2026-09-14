@@ -34,6 +34,19 @@ scan, decoding a token - becomes a JSON call an agent or a `curl` line can make.
 It pairs with the [`burp-interaction`](.claude/skills/burp-interaction) agent skill so an AI
 assistant can drive Burp directly.
 
+## What reburp unlocks
+
+Burp features your agent can now drive over REST:
+
+- **Scanner** - start an active audit or crawl, stop a running task, pull the report
+- **Intruder & request engine** - fuzz, plus a Turbo Intruder-style high-throughput engine (queue, pause, resume, cancel)
+- **Target site map** - iterate and search the whole target tree, not just proxy history
+- **WebSockets** - open a connection and send text/binary frames, not just read history
+- **Engagement tools** - generate a CSRF PoC, discover content, find references, send to decoder
+- **Access-control testing** - replay a request with and without its token and diff the responses, Autorize-style (BOLA/BFLA)
+- **BChecks & Bambda** - import custom scan rules, build filter chains, raise custom issues
+
+- [What reburp unlocks](#what-reburp-unlocks)
 - [Install](#install)
 - [Load into Burp Suite](#load-into-burp-suite)
 - [API docs](#api-docs)
