@@ -804,12 +804,14 @@ data class InterceptRuleRequest(
     val boolean_operator: String = "or",
     /**
      * Burp's own vocabulary, not a Montoya enum.
-     * Allowed: url | http_method | file_extension | content_type_header | status_code | request
+     * Allowed: url | http_method | file_extension | content_type_header | status_code |
+     *          request | mime_type | domain_name | protocol | cookie_name | cookie_value |
+     *          any_header | body | param_name | param_value | listener_port
      */
     val match_type: String,
     /**
-     * Allowed: matches | does_not_match | is_in_target_scope | was_intercepted |
-     *          was_modified | contains_parameters
+     * Allowed: matches | does_not_match | is_in_target_scope | contains_parameters |
+     *          was_intercepted | was_modified | is_text. Which apply depends on match_type.
      */
     val match_relationship: String,
     val match_condition: String

@@ -247,14 +247,23 @@ def main():
                 verify=lambda p: None
                 if all(k in p["client_rules"][0] for k in ("match_type", "boolean_operator"))
                 else f"missing real fields: {p['client_rules'][0]}")
-    # Burp drops any rule whose vocabulary it does not recognise, so this must refuse
-    # rather than report success.
-    c.check("intercept rejects an invented match_type", "POST",
+    # Burp silently drops a rule whose vocabulary it does not recognise. MIME_TYPE looks
+    # invalid but Burp accepts it as mime_type, so assert with a value it truly rejects.
+    c.check("intercept rejects an unknown match_type", "POST",
             "/api/proxy/intercept/rules/client",
-            {"match_type": "MIME_TYPE", "match_relationship": "matches",
-             "match_condition": "text"}, expect=500,
+            {"match_type": "not_a_real_match_type", "match_relationship": "matches",
+             "match_condition": "x"}, expect=500,
             verify=lambda p: None if "vocabulary" in (p or {}).get("error", "")
             else f"unhelpful error: {p}")
+    # A valid rule must round-trip and then be removed, so repeat runs leave no residue.
+    if isinstance(ir, dict) and ir.get("client_rules") is not None:
+        n = len(ir["client_rules"])
+        if c.check("intercept accepts a valid rule", "POST",
+                   "/api/proxy/intercept/rules/client",
+                   {"match_type": "url", "match_relationship": "matches",
+                    "match_condition": "reburp-smoke", "enabled": False}) is not None:
+            c.check("added intercept rule is removed again", "DELETE",
+                    f"/api/proxy/intercept/rules/client/{n}")
 
     print("\nMatch and replace")
     listed_mr = c.check("list match/replace rules", "GET", "/api/proxy/match-replace",

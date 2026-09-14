@@ -245,16 +245,21 @@ fun openApiJson(port: Int): String = """
     "/api/proxy/intercept": {
       "get": {
         "tags": ["Proxy"],
-        "summary": "Get proxy intercept state",
-        "description": "**[Montoya API]** Returns whether Burp's intercept is currently enabled or disabled.",
+        "summary": "Proxy intercept state is not readable",
+        "description": "**[Montoya API]** Montoya exposes no way to read the current intercept state, only to set it, so this returns an explanatory note rather than the state. Use `PUT /api/proxy/intercept` to turn intercept on or off.",
         "operationId": "getInterceptState",
         "x-api-source": "montoya",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "A note explaining that the state cannot be queried",
             "content": {
               "application/json": {
-                "schema": { "${'$'}ref": "#/components/schemas/InterceptRequest" }
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "note": { "type": "string" }
+                  }
+                }
               }
             }
           }
@@ -4379,8 +4384,8 @@ ${extraPaths()}
         "properties": {
           "enabled":            { "type": "boolean", "default": true },
           "boolean_operator":   { "type": "string", "enum": ["and", "or"], "default": "or", "description": "How this rule combines with the previous one. Burp discards any rule that omits it." },
-          "match_type":         { "type": "string", "enum": ["url", "http_method", "file_extension", "content_type_header", "status_code", "request"], "description": "Burp's own vocabulary, not a Montoya enum. Any other value makes Burp discard the rule." },
-          "match_relationship": { "type": "string", "enum": ["matches", "does_not_match", "is_in_target_scope", "was_intercepted", "was_modified", "contains_parameters"] },
+          "match_type":         { "type": "string", "enum": ["url", "http_method", "file_extension", "content_type_header", "status_code", "request", "mime_type", "domain_name", "protocol", "cookie_name", "cookie_value", "any_header", "body", "param_name", "param_value", "listener_port"], "description": "Burp's own vocabulary, not a Montoya enum. Confirmed against a live Burp; any value Burp does not recognise makes it discard the rule silently, which this endpoint detects and reports as an error." },
+          "match_relationship": { "type": "string", "enum": ["matches", "does_not_match", "is_in_target_scope", "contains_parameters", "was_intercepted", "was_modified", "is_text"], "description": "Which relationship applies depends on match_type: is_text pairs with mime_type, contains_parameters with request." },
           "match_condition":    { "type": "string", "description": "Value to match against" }
         }
       }
