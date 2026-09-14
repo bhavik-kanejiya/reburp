@@ -69,6 +69,7 @@ grab the matching jar from [Releases](https://github.com/forefy/reburp/releases)
 
 | reburp | Minimum Burp Suite (Montoya) |
 |--------|------------------------------|
+| [1.1.2](https://github.com/forefy/reburp/releases/tag/v1.1.2) | 2026.7 |
 | [1.1.1](https://github.com/forefy/reburp/releases/tag/v1.1.1) | 2026.7 |
 | [1.1.0](https://github.com/forefy/reburp/releases/tag/v1.1.0) | 2026.7 |
 | [1.0.x](https://github.com/forefy/reburp/releases/tag/v1.0.1) | 2025.12 |
@@ -79,7 +80,7 @@ grab the matching jar from [Releases](https://github.com/forefy/reburp/releases)
 git clone https://github.com/forefy/reburp.git
 cd reburp
 ./gradlew shadowJar
-# Output: build/libs/reburp-1.1.1.jar
+# Output: build/libs/reburp-1.1.2.jar
 ```
 
 If your `JAVA_HOME` isn't set, point it at your JDK:
@@ -92,7 +93,7 @@ JAVA_HOME=/path/to/jdk17 ./gradlew shadowJar
 
 1. Open Burp Suite → **Extensions** → **Installed** → **Add**
 2. Extension type: **Java**
-3. Extension file: `build/libs/reburp-1.1.1.jar`
+3. Extension file: `build/libs/reburp-1.1.2.jar`
 4. Click **Next** - the extension starts automatically on port **9090**
 
 A **reburp** tab appears in Burp showing every REST call as it happens.
